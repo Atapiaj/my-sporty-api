@@ -240,12 +240,14 @@ const tables = [
         emisor_id INT NOT NULL,
         receptor_id INT NULL,
         equipo_id INT NULL,
+        campeonato_id INT NULL,
         mensaje TEXT NOT NULL,
         leido TINYINT(1) DEFAULT 0,
         fecha_envio DATETIME DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (emisor_id) REFERENCES usuario(id) ON DELETE CASCADE,
         FOREIGN KEY (receptor_id) REFERENCES usuario(id) ON DELETE CASCADE,
-        FOREIGN KEY (equipo_id) REFERENCES equipo(id) ON DELETE CASCADE
+        FOREIGN KEY (equipo_id) REFERENCES equipo(id) ON DELETE CASCADE,
+        FOREIGN KEY (campeonato_id) REFERENCES campeonato(id) ON DELETE CASCADE
       ) ENGINE=InnoDB;
     `
   },
@@ -259,6 +261,19 @@ const tables = [
         PRIMARY KEY (usuario_id, equipo_id),
         FOREIGN KEY (usuario_id) REFERENCES usuario(id) ON DELETE CASCADE,
         FOREIGN KEY (equipo_id) REFERENCES equipo(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB;
+    `
+  },
+  {
+    name: 'campeonato_chat_lecturas',
+    query: `
+      CREATE TABLE IF NOT EXISTS campeonato_chat_lecturas (
+        usuario_id INT NOT NULL,
+        campeonato_id INT NOT NULL,
+        ultima_lectura DATETIME DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (usuario_id, campeonato_id),
+        FOREIGN KEY (usuario_id) REFERENCES usuario(id) ON DELETE CASCADE,
+        FOREIGN KEY (campeonato_id) REFERENCES campeonato(id) ON DELETE CASCADE
       ) ENGINE=InnoDB;
     `
   }
@@ -310,6 +325,15 @@ async function initDb() {
     {
       name: 'Add push_token to usuario',
       query: 'ALTER TABLE usuario ADD COLUMN IF NOT EXISTS push_token VARCHAR(255) NULL'
+    },
+    {
+      name: 'Add campeonato_id to mensajes',
+      query: 'ALTER TABLE mensajes ADD COLUMN IF NOT EXISTS campeonato_id INT NULL'
+    },
+    {
+      name: 'Add fk_campeonato_mensajes to mensajes',
+      query: 'ALTER TABLE mensajes ADD CONSTRAINT fk_campeonato_mensajes FOREIGN KEY (campeonato_id) REFERENCES campeonato(id) ON DELETE CASCADE',
+      ignoreError: true
     }
   ];
 
