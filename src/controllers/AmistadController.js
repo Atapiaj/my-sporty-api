@@ -3,7 +3,7 @@ const db = require('../config/db');
 class AmistadController {
     static async index(req, res) {
         try {
-            const usuarioId = req.user.id;
+            const usuarioId = req.query.usuario_id || req.user.id;
             const [amigos] = await db.query(`
                 SELECT u.id, u.nombre, u.correo, u.url_foto_perfil
                 FROM amistad a

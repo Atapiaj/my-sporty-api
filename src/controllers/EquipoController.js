@@ -32,7 +32,7 @@ class EquipoController {
 
     static async misEquipos(req, res) {
         try {
-            const usuarioId = req.user.id;
+            const usuarioId = req.query.usuario_id || req.user.id;
             
             const [equiposPropietarios] = await db.query('SELECT * FROM equipo WHERE propietario_id = ?', [usuarioId]);
             const [equiposMiembros] = await db.query(`
