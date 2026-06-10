@@ -34,9 +34,17 @@ class EquipoController {
         try {
             const usuarioId = req.query.usuario_id || req.user.id;
             
-            const [equiposPropietarios] = await db.query('SELECT * FROM equipo WHERE propietario_id = ?', [usuarioId]);
+            const [equiposPropietarios] = await db.query(`
+                SELECT e.*,
+                    (SELECT COUNT(*) FROM miembros_equipo me WHERE me.equipo_id = e.id AND me.activo = 1) AS total_miembros
+                FROM equipo e
+                WHERE e.propietario_id = ?
+            `, [usuarioId]);
+
             const [equiposMiembros] = await db.query(`
-                SELECT e.* FROM equipo e
+                SELECT e.*,
+                    (SELECT COUNT(*) FROM miembros_equipo me2 WHERE me2.equipo_id = e.id AND me2.activo = 1) AS total_miembros
+                FROM equipo e
                 INNER JOIN miembros_equipo me ON e.id = me.equipo_id
                 WHERE me.usuario_id = ?
             `, [usuarioId]);
