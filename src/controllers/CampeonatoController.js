@@ -138,7 +138,7 @@ class CampeonatoController {
         try {
             const data = req.body;
             if (!data) return res.status(400).json({ status: 400, message: 'Datos inválidos' });
-            
+
             if (!data.nombre || !data.nombre.trim()) {
                 return res.status(422).json({ status: 422, message: 'El campo "nombre" es requerido' });
             }
@@ -161,9 +161,9 @@ class CampeonatoController {
             }
 
             // Parse integers robustly — TextInput always sends strings
-            const numJugadores  = data.numero_jugadores  != null && data.numero_jugadores  !== '' ? parseInt(data.numero_jugadores,  10) : null;
-            const numSuplentes  = data.numero_suplentes  != null && data.numero_suplentes  !== '' ? parseInt(data.numero_suplentes,  10) : null;
-            const numEquipos    = data.numero_equipos    != null && data.numero_equipos    !== '' ? parseInt(data.numero_equipos,    10) : null;
+            const numJugadores = data.numero_jugadores != null && data.numero_jugadores !== '' ? parseInt(data.numero_jugadores, 10) : null;
+            const numSuplentes = data.numero_suplentes != null && data.numero_suplentes !== '' ? parseInt(data.numero_suplentes, 10) : null;
+            const numEquipos = data.numero_equipos != null && data.numero_equipos !== '' ? parseInt(data.numero_equipos, 10) : null;
 
             // If inscripciones_abiertas was explicitly sent, honor it; otherwise derive from type
             const inscripcionesInt = (data.inscripciones_abiertas !== undefined && data.inscripciones_abiertas !== null)
@@ -188,7 +188,7 @@ class CampeonatoController {
                 data.deporte || null,
                 numJugadores,
                 numSuplentes,
-                numEquipos,
+                data.tipoActividad === 'partido' ? 2 : numEquipos,
                 req.user.id || null,
                 data.privacidad || 'publico',
                 data.tipoActividad || 'campeonato'
@@ -205,10 +205,18 @@ class CampeonatoController {
 
                 const faseId = faseResult.insertId;
 
-                await db.query(`
-                    INSERT INTO partidos (fase_id, fecha, equipo_local_id, estado) 
-                    VALUES (?, ?, ?, 'programado')
-                `, [faseId, data.fecha_inicio || null, data.equipo_local_id || null]);
+                if (data.equipo_local_id) {
+                    await db.query(`
+                        INSERT INTO partidos (fase_id, fecha, equipo_local_id, estado) 
+                        VALUES (?, ?, ?, 'programado')
+                    `, [faseId, data.fecha_inicio || null, data.equipo_local_id]);
+
+                    // Agregar el equipo local como miembro del campeonato (partido)
+                    await db.query(`
+                        INSERT INTO miembros_campeonatos (campeonato_id, equipo_id, activo, fecha_ingreso) 
+                        VALUES (?, ?, 1, NOW())
+                    `, [campeonatoId, data.equipo_local_id]);
+                }
             }
 
             const [items] = await db.query('SELECT * FROM campeonato WHERE id = ?', [campeonatoId]);
@@ -301,7 +309,7 @@ class CampeonatoController {
                   AND mc.activo = 1
             `;
             const [items] = await db.query(query, [usuarioId, usuarioId]);
-            
+
             return res.json({ status: 200, message: 'Campeonatos participando obtenidos', data: items });
         } catch (error) {
             return res.status(500).json({ status: 500, message: 'Error al obtener campeonatos participantes', details: error.message });
