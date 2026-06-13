@@ -175,8 +175,8 @@ class CampeonatoController {
                     nombre, descripcion, telefono_contacto, estado,
                     inscripciones_abiertas, fecha_inicio, fecha_fin,
                     deporte, numero_jugadores, numero_suplentes, numero_equipos,
-                    propietario_id, privacidad
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    propietario_id, privacidad, tipo_actividad
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `, [
                 data.nombre?.trim() || null,
                 data.descripcion || null,
@@ -190,14 +190,32 @@ class CampeonatoController {
                 numSuplentes,
                 numEquipos,
                 req.user.id || null,
-                data.privacidad || 'publico'
+                data.privacidad || 'publico',
+                data.tipoActividad || 'campeonato'
             ]);
 
-            const [items] = await db.query('SELECT * FROM campeonato WHERE id = ?', [result.insertId]);
-            return res.status(201).json({ status: 201, message: 'Campeonato creado', data: items[0] });
+            const campeonatoId = result.insertId;
+
+            if (data.tipoActividad === 'partido') {
+                // Generar automáticamente la Fase y el Partido para el Amistoso
+                const [faseResult] = await db.query(`
+                    INSERT INTO fases (campeonato_id, nombre, orden, tipo, estado, numero_equipos) 
+                    VALUES (?, 'Partido Único', 1, 'eliminatoria', 'activo', 2)
+                `, [campeonatoId]);
+
+                const faseId = faseResult.insertId;
+
+                await db.query(`
+                    INSERT INTO partidos (fase_id, fecha, equipo_local_id, estado) 
+                    VALUES (?, ?, ?, 'programado')
+                `, [faseId, data.fecha_inicio || null, data.equipo_local_id || null]);
+            }
+
+            const [items] = await db.query('SELECT * FROM campeonato WHERE id = ?', [campeonatoId]);
+            return res.status(201).json({ status: 201, message: 'Evento creado', data: items[0] });
 
         } catch (error) {
-            return res.status(500).json({ status: 500, message: 'Error al crear campeonato', details: error.message });
+            return res.status(500).json({ status: 500, message: 'Error al crear evento', details: error.message });
         }
     }
 
