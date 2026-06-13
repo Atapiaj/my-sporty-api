@@ -70,19 +70,39 @@ class InvitacionCampeonatosController {
                 }
 
                 // Check if championship is now full, and close inscriptions if so
-                const [campData] = await connection.query('SELECT numero_equipos FROM campeonato WHERE id = ?', [invCheck[0].campeonato_id]);
+                const [campData] = await connection.query('SELECT numero_equipos, tipo_actividad FROM campeonato WHERE id = ?', [invCheck[0].campeonato_id]);
                 const [countData] = await connection.query("SELECT COUNT(*) as total FROM miembros_campeonatos WHERE campeonato_id = ? AND activo = 1", [invCheck[0].campeonato_id]);
                 const maxEquipos = campData[0]?.numero_equipos;
-                if (maxEquipos != null && maxEquipos > 0 && countData[0].total >= maxEquipos) {
-                    await connection.query('UPDATE campeonato SET inscripciones_abiertas = 0 WHERE id = ?', [invCheck[0].campeonato_id]);
+                
+                if (campData[0]?.tipo_actividad === 'partido') {
+                    // Update the match with the away team
+                    const [partidos] = await connection.query(`
+                        SELECT p.id FROM partidos p 
+                        JOIN fases f ON p.fase_id = f.id 
+                        WHERE f.campeonato_id = ?
+                    `, [invCheck[0].campeonato_id]);
+                    if (partidos.length > 0) {
+                        await connection.query('UPDATE partidos SET equipo_visitante_id = ? WHERE id = ?', [invCheck[0].equipo_id, partidos[0].id]);
+                    }
+                    // A match only has 2 teams
+                    if (countData[0].total >= 2) {
+                        await connection.query('UPDATE campeonato SET inscripciones_abiertas = 0 WHERE id = ?', [invCheck[0].campeonato_id]);
+                    }
+                    await connection.query('DELETE FROM invitacion_campeonatos WHERE id = ?', [id]);
+                    await connection.commit();
+                    return res.json({ status: 200, message: 'Actualizado y partido programado' });
+                } else {
+                    if (maxEquipos != null && maxEquipos > 0 && countData[0].total >= maxEquipos) {
+                        await connection.query('UPDATE campeonato SET inscripciones_abiertas = 0 WHERE id = ?', [invCheck[0].campeonato_id]);
+                    }
+
+                    await connection.query('DELETE FROM invitacion_campeonatos WHERE id = ?', [id]);
+
+                    // Regenerate fixture due to new team
+                    await connection.commit(); // commit current changes first since regenerate creates its own transaction
+                    await FixtureService.regenerate(invCheck[0].campeonato_id);
+                    return res.json({ status: 200, message: 'Actualizado y fixture regenerado' });
                 }
-
-                await connection.query('DELETE FROM invitacion_campeonatos WHERE id = ?', [id]);
-
-                // Regenerate fixture due to new team
-                await connection.commit(); // commit current changes first since regenerate creates its own transaction
-                await FixtureService.regenerate(invCheck[0].campeonato_id);
-                return res.json({ status: 200, message: 'Actualizado y fixture regenerado' });
             }
 
             await connection.query('DELETE FROM invitacion_campeonatos WHERE id = ?', [id]);
