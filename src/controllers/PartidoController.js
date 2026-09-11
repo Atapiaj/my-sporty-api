@@ -1,6 +1,51 @@
 const db = require('../config/db');
 
 class PartidoController {
+    static async misPartidos(req, res) {
+        try {
+            const usuarioId = req.user.id;
+            const [items] = await db.query(`
+                SELECT 
+                    p.*,
+                    el.nombre as equipo_local_nombre,
+                    el.url_logo as equipo_local_logo,
+                    ev.nombre as equipo_visitante_nombre,
+                    ev.url_logo as equipo_visitante_logo,
+                    ed.nombre as escenario_nombre,
+                    c.nombre as campeonato_nombre,
+                    c.deporte as campeonato_deporte,
+                    c.id as campeonato_id,
+                    c.propietario_id as campeonato_propietario_id
+                FROM partidos p
+                LEFT JOIN equipo el ON p.equipo_local_id = el.id
+                LEFT JOIN equipo ev ON p.equipo_visitante_id = ev.id
+                LEFT JOIN escenarios_deportivos ed ON p.escenario_id = ed.id
+                JOIN fases f ON p.fase_id = f.id
+                JOIN campeonato c ON f.campeonato_id = c.id
+                WHERE p.fecha IS NOT NULL
+                  AND (
+                      p.equipo_local_id IN (
+                          SELECT e.id FROM equipo e WHERE e.propietario_id = ?
+                          UNION
+                          SELECT me.equipo_id FROM miembros_equipo me WHERE me.usuario_id = ? AND me.activo = 1
+                      )
+                      OR
+                      p.equipo_visitante_id IN (
+                          SELECT e.id FROM equipo e WHERE e.propietario_id = ?
+                          UNION
+                          SELECT me.equipo_id FROM miembros_equipo me WHERE me.usuario_id = ? AND me.activo = 1
+                      )
+                      OR c.propietario_id = ?
+                  )
+                ORDER BY p.fecha ASC
+            `, [usuarioId, usuarioId, usuarioId, usuarioId, usuarioId]);
+
+            return res.json({ status: 200, message: 'Partidos del usuario obtenidos', data: items });
+        } catch (error) {
+            return res.status(500).json({ status: 500, message: 'Error al obtener partidos', details: error.message });
+        }
+    }
+
     static async index(req, res) {
         try {
             const [items] = await db.query('SELECT * FROM partidos');

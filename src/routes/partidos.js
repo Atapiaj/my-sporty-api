@@ -5,6 +5,7 @@ const authMiddleware = require('../middlewares/auth');
 
 router.use(authMiddleware);
 
+router.get('/mis-partidos', PartidoController.misPartidos);
 router.get('/fase/:fase_id', PartidoController.showByFase);
 router.get('/entre/:inicio/:fin', PartidoController.buscarPorFecha);
 router.get('/', PartidoController.index);
