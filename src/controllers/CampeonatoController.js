@@ -1,8 +1,26 @@
 const db = require('../config/db');
 
 class CampeonatoController {
+    static async autoUpdateEstados() {
+        try {
+            await db.query(`
+                UPDATE campeonato
+                SET estado = CASE
+                    WHEN fecha_fin IS NOT NULL AND fecha_fin < CURDATE() THEN 'finalizado'
+                    WHEN fecha_inicio IS NOT NULL AND fecha_inicio <= CURDATE() AND (fecha_fin IS NULL OR fecha_fin >= CURDATE()) THEN 'activo'
+                    WHEN fecha_inicio IS NOT NULL AND fecha_inicio > CURDATE() THEN 'borrador'
+                    ELSE estado
+                END
+                WHERE estado != 'cancelado'
+            `);
+        } catch (err) {
+            console.error('[CampeonatoController] Error al actualizar estados automáticamente:', err.message);
+        }
+    }
+
     static async index(req, res) {
         try {
+            await CampeonatoController.autoUpdateEstados();
             const [items] = await db.query('SELECT * FROM campeonato');
             return res.json({ status: 200, message: 'Campeonatos obtenidos', data: items });
         } catch (error) {
@@ -12,6 +30,7 @@ class CampeonatoController {
 
     static async indexPublicos(req, res) {
         try {
+            await CampeonatoController.autoUpdateEstados();
             const [items] = await db.query(`
                 SELECT c.*, 
                     e.nombre as campeon_nombre,
@@ -39,6 +58,7 @@ class CampeonatoController {
 
     static async show(req, res) {
         try {
+            await CampeonatoController.autoUpdateEstados();
             const [items] = await db.query('SELECT * FROM campeonato WHERE id = ?', [req.params.id]);
             const item = items[0];
             if (item) {
@@ -58,6 +78,7 @@ class CampeonatoController {
         }
 
         try {
+            await CampeonatoController.autoUpdateEstados();
             const [items] = await db.query('SELECT * FROM campeonato WHERE propietario_id = ?', [propietarioId]);
             if (items.length > 0) {
                 return res.json({ status: 200, message: 'Campeonatos obtenidos por propietario', data: items });
@@ -82,6 +103,7 @@ class CampeonatoController {
         }
 
         try {
+            await CampeonatoController.autoUpdateEstados();
             const [items] = await db.query('SELECT * FROM campeonato WHERE nombre LIKE ?', [`%${nombre}%`]);
             if (items.length > 0) {
                 return res.json({ status: 200, message: 'Campeonatos encontrados', data: items });
@@ -105,6 +127,7 @@ class CampeonatoController {
         }
 
         try {
+            await CampeonatoController.autoUpdateEstados();
             const [items] = await db.query('SELECT * FROM campeonato WHERE estado = ?', [estado]);
             if (items.length > 0) {
                 return res.json({ status: 200, message: 'Campeonatos obtenidos por estado', data: items });
@@ -123,6 +146,7 @@ class CampeonatoController {
         }
 
         try {
+            await CampeonatoController.autoUpdateEstados();
             const [items] = await db.query('SELECT * FROM campeonato WHERE deporte = ?', [deporte]);
             if (items.length > 0) {
                 return res.json({ status: 200, message: 'Campeonatos obtenidos por deporte', data: items });
@@ -143,14 +167,23 @@ class CampeonatoController {
                 return res.status(422).json({ status: 422, message: 'El campo "nombre" es requerido' });
             }
 
-            // Auto-compute estado from fecha_inicio
+            // Auto-compute estado from fecha_inicio and fecha_fin
             let estadoFinal = data.estado;
-            if (!estadoFinal && data.fecha_inicio) {
+            if (!estadoFinal && (data.fecha_inicio || data.fecha_fin)) {
                 const today = new Date();
                 today.setHours(0, 0, 0, 0);
-                const inicio = new Date(data.fecha_inicio);
-                inicio.setHours(0, 0, 0, 0);
-                estadoFinal = inicio.getTime() <= today.getTime() ? 'activo' : 'programado';
+                const inicio = data.fecha_inicio ? new Date(data.fecha_inicio) : null;
+                const fin = data.fecha_fin ? new Date(data.fecha_fin) : null;
+                if (inicio) inicio.setHours(0, 0, 0, 0);
+                if (fin) fin.setHours(0, 0, 0, 0);
+
+                if (fin && fin.getTime() < today.getTime()) {
+                    estadoFinal = 'finalizado';
+                } else if (inicio && inicio.getTime() <= today.getTime()) {
+                    estadoFinal = 'activo';
+                } else if (inicio && inicio.getTime() > today.getTime()) {
+                    estadoFinal = 'borrador';
+                }
             }
             estadoFinal = estadoFinal || 'borrador';
 
@@ -219,6 +252,7 @@ class CampeonatoController {
                 }
             }
 
+            await CampeonatoController.autoUpdateEstados();
             const [items] = await db.query('SELECT * FROM campeonato WHERE id = ?', [campeonatoId]);
             return res.status(201).json({ status: 201, message: 'Evento creado', data: items[0] });
 
@@ -267,6 +301,7 @@ class CampeonatoController {
                 data.privacidad, id
             ]);
 
+            await CampeonatoController.autoUpdateEstados();
             const [updatedItems] = await db.query('SELECT * FROM campeonato WHERE id = ?', [id]);
             return res.json({ status: 200, message: 'Campeonato actualizado', data: updatedItems[0] });
         } catch (error) {
@@ -299,6 +334,7 @@ class CampeonatoController {
         }
 
         try {
+            await CampeonatoController.autoUpdateEstados();
             const query = `
                 SELECT DISTINCT c.*
                 FROM campeonato c
@@ -316,5 +352,4 @@ class CampeonatoController {
         }
     }
 }
-
 module.exports = CampeonatoController;
