@@ -24,23 +24,23 @@ class FaseController {
     }
 
     static calcularEquiposRestantesFase(dbFase) {
-        if (!dbFase.numero_equipos) return '';
+        if (!dbFase.numero_equipos) return 1;
         
         const tipo = (dbFase.tipo || 'liga').toLowerCase();
         
         if (tipo === 'fase_grupos' || tipo === 'grupos') {
-            if (dbFase.clasificados_por_grupo && dbFase.numero_grupos) {
-                return dbFase.clasificados_por_grupo * dbFase.numero_grupos;
+            const clasificados = parseInt(dbFase.clasificados_por_grupo, 10);
+            const numGrupos = parseInt(dbFase.numero_grupos, 10) || (dbFase.tamano_grupo ? Math.floor(dbFase.numero_equipos / dbFase.tamano_grupo) : 0);
+            
+            if (clasificados && numGrupos) {
+                return clasificados * numGrupos;
             }
-            return '';
-        } else if (tipo === 'eliminatoria') {
-            // En eliminatoria, generalmente avanzan la mitad (o menos)
-            return Math.ceil(dbFase.numero_equipos / 2);
-        } else if (tipo === 'liga') {
             return dbFase.numero_equipos;
+        } else if (tipo === 'eliminatoria' || tipo === 'liga') {
+            return 1;
         }
         
-        return '';
+        return 1;
     }
 
     static async index(req, res) {
