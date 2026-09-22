@@ -29,9 +29,7 @@ class FixtureService {
                         `, [fase.id, match.local, match.visitante, match.jornada]);
                     }
                 } else if (tipoFase === 'eliminatoria') {
-                    if (currentTeams.length % 2 !== 0) {
-                        throw new Error("No se puede hacer eliminatoria con cantidad impar de equipos.");
-                    }
+                    // generateKnockoutTree already handles odd teams via byes (nextPowerOf2)
                     await this.generateKnockoutTree(connection, fase.id, currentTeams);
                     // For logic simplicity without complex progression simulated yet: 
                     // currentTeams = advance logic...
