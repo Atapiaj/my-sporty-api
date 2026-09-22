@@ -1,15 +1,22 @@
 const db = require('../config/db');
 
 class FixtureService {
-    static async regenerate(campeonato_id) {
-        const connection = await db.getConnection();
+    /**
+     * @param {number} campeonato_id
+     * @param {import('mysql2').PoolConnection} [externalConnection]
+     *   Pass the caller's connection to participate in its transaction.
+     *   When omitted, regenerate manages its own connection + transaction.
+     */
+    static async regenerate(campeonato_id, externalConnection = null) {
+        const standalone = !externalConnection;
+        const connection = standalone ? await db.getConnection() : externalConnection;
         try {
-            await connection.beginTransaction();
+            if (standalone) await connection.beginTransaction();
 
             await connection.query('DELETE FROM partidos WHERE fase_id IN (SELECT id FROM fases WHERE campeonato_id = ?)', [campeonato_id]);
 
             const [fases] = await connection.query('SELECT * FROM fases WHERE campeonato_id = ? ORDER BY orden ASC', [campeonato_id]);
-            
+
             const [equipos] = await connection.query('SELECT equipo_id FROM miembros_campeonatos WHERE campeonato_id = ? AND activo = 1', [campeonato_id]);
             const teamIds = equipos.map(e => e.equipo_id);
 
@@ -29,7 +36,9 @@ class FixtureService {
                         `, [fase.id, match.local, match.visitante, match.jornada]);
                     }
                 } else if (tipoFase === 'eliminatoria') {
-                    // generateKnockoutTree already handles odd teams via byes (nextPowerOf2)
+                    if (currentTeams.length % 2 !== 0) {
+                        throw new Error(`No se puede crear una fase de eliminatoria con ${currentTeams.length} equipos (número impar). Usa una fase de Liga o ajusta el número de equipos a uno par.`);
+                    }
                     await this.generateKnockoutTree(connection, fase.id, currentTeams);
                     // For logic simplicity without complex progression simulated yet: 
                     // currentTeams = advance logic...
@@ -38,7 +47,7 @@ class FixtureService {
                     if (!fase.numero_grupos || !fase.tamano_grupo) {
                         throw new Error(`Fase de grupos ${fase.nombre} requiere numero_grupos y tamano_grupo`);
                     }
-                    
+
                     const matches = this.generateGroups(currentTeams, fase.numero_grupos, fase.tamano_grupo);
                     for (const match of matches) {
                         await connection.query(`
@@ -46,21 +55,20 @@ class FixtureService {
                             VALUES (?, ?, ?, ?, 'programado', ?)
                         `, [fase.id, match.local, match.visitante, match.jornada, match.grupo]);
                     }
-                    
+
                     // Calcular equipos que pasan a la siguiente fase
                     const equiposQuePasan = fase.clasificados_por_grupo ? fase.numero_grupos * fase.clasificados_por_grupo : fase.numero_grupos;
-                    // Simplificación: tomar los primeros N equipos (en un sistema real, esto se basaría en resultados)
                     currentTeams = currentTeams.slice(0, Math.min(equiposQuePasan, currentTeams.length));
                 }
             }
 
-            await connection.commit();
+            if (standalone) await connection.commit();
         } catch (error) {
-            await connection.rollback();
+            if (standalone) await connection.rollback();
             console.error('FixtureService error:', error);
             throw error;
         } finally {
-            connection.release();
+            if (standalone) connection.release();
         }
     }
 
@@ -111,8 +119,8 @@ class FixtureService {
         // We build the tree bottom-up. But since we need partido_siguiente_id, 
         // we should actually build it top-down in the DB (Final -> Semis -> Quarters)
         let totalRounds = Math.log2(nextPowerOf2);
-        
-        let currentRoundMatchesIds = []; 
+
+        let currentRoundMatchesIds = [];
         let nextRoundMatchesIds = [];
 
         // Top-down: create the Final first.
@@ -132,7 +140,7 @@ class FixtureService {
                 const [result] = await connection.query(`
                     INSERT INTO partidos (fase_id, estado, partido_siguiente_id, jornada) 
                     VALUES (?, 'programado', ?, ?)
-                `, [fase_id, parentId, totalRounds - level]); 
+                `, [fase_id, parentId, totalRounds - level]);
                 levelIds.push(result.insertId);
             }
             matchIdsByLevel.push(levelIds);
@@ -144,7 +152,7 @@ class FixtureService {
         // Now we allocate teams to the leaves. 
         // First we have numFirstRoundMatches where two teams play. 
         // The remaining leaves get 1 team + 1 null (Bye).
-        
+
         // Let's allocate 'shuffled' into the leaves
         let teamIdx = 0;
         for (let i = 0; i < leafMatches.length; i++) {
@@ -169,13 +177,13 @@ class FixtureService {
 
     static generateGroups(teams, numeroGrupos, tamanoGrupo) {
         const matches = [];
-        
+
         // Distribuir equipos en grupos
         const groups = [];
         for (let i = 0; i < numeroGrupos; i++) {
             groups.push([]);
         }
-        
+
         // Distribución round-robin de equipos en grupos
         teams.forEach((team, index) => {
             const groupIndex = index % numeroGrupos;
@@ -183,7 +191,7 @@ class FixtureService {
                 groups[groupIndex].push(team);
             }
         });
-        
+
         // Generar partidos para cada grupo
         groups.forEach((groupTeams, groupIndex) => {
             if (groupTeams.length >= 2) {
@@ -196,7 +204,7 @@ class FixtureService {
                 matches.push(...matchesWithGroup);
             }
         });
-        
+
         return matches;
     }
 }

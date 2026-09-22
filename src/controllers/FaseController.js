@@ -77,32 +77,44 @@ class FaseController {
     }
 
     static async store(req, res) {
+        const connection = await db.getConnection();
         try {
+            await connection.beginTransaction();
+
             const data = req.body;
-            const [result] = await db.query(`
+            const [result] = await connection.query(`
                 INSERT INTO fases (campeonato_id, nombre, orden, tipo, estado, fecha_inicio, fecha_fin, numero_equipos, numero_grupos, tamano_grupo, clasificados_por_grupo) 
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `, [
-                data.campeonato_id, 
-                data.nombre, 
-                data.orden || 1, 
-                data.tipo || 'fase_grupos', 
-                data.estado || 'activo', 
-                data.fecha_inicio || null, 
-                data.fecha_fin || null, 
+                data.campeonato_id,
+                data.nombre,
+                data.orden || 1,
+                data.tipo || 'fase_grupos',
+                data.estado || 'activo',
+                data.fecha_inicio || null,
+                data.fecha_fin || null,
                 data.numero_equipos || null,
                 data.numero_grupos || null,
                 data.tamano_grupo || null,
                 data.clasificados_por_grupo || null
             ]);
-            
-            await FixtureService.regenerate(data.campeonato_id);
 
-            const [items] = await db.query('SELECT * FROM fases WHERE id = ?', [result.insertId]);
+            // Regenerate fixture inside the same transaction.
+            // If this throws (e.g. odd-team eliminatoria), the INSERT above is rolled back
+            // and the phase is never saved, allowing the user to retry with a different type.
+            await FixtureService.regenerate(data.campeonato_id, connection);
+
+            await connection.commit();
+
+            const [items] = await connection.query('SELECT * FROM fases WHERE id = ?', [result.insertId]);
             const mapped = FaseController.mapFaseResponse(items[0]);
             return res.status(201).json({ status: 201, message: 'Creado', data: mapped });
         } catch (error) {
-            return res.status(500).json({ status: 500, message: 'Error', details: error.message });
+            await connection.rollback();
+            // Return the specific error message so the client can show it to the user
+            return res.status(422).json({ status: 422, message: error.message });
+        } finally {
+            connection.release();
         }
     }
 
