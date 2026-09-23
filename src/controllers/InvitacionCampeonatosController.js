@@ -25,8 +25,19 @@ class InvitacionCampeonatosController {
                 return res.status(400).json({ status: 400, message: 'Faltan campos' });
             }
 
+            // Verificar existencia del equipo
+            const [equipos] = await db.query('SELECT * FROM equipo WHERE id = ?', [data.equipo_id]);
+            const equipo = equipos[0];
+            if (!equipo) {
+                return res.status(404).json({ status: 404, message: 'Equipo no encontrado' });
+            }
+
             // Si el equipo es del propio usuario organizador, inscribir directamente
             if (data.id_usuario == req.user.id) {
+                if (equipo.propietario_id != req.user.id) {
+                    return res.status(403).json({ status: 403, message: 'Solo el dueño o creador del equipo puede inscribirlo en un campeonato' });
+                }
+
                 const connection = await db.getConnection();
                 try {
                     await connection.beginTransaction();
@@ -201,6 +212,12 @@ class InvitacionCampeonatosController {
             const [equipos] = await db.query('SELECT * FROM equipo WHERE id = ?', [equipo_id]);
             const equipo = equipos[0];
             if (!equipo) return res.status(404).json({ status: 404, message: 'Equipo no encontrado' });
+
+            // VALIDATION: Team owner check (Only team owner/creator can request union to a championship)
+            if (equipo.propietario_id != req.user.id) {
+                return res.status(403).json({ status: 403, message: 'Solo el dueño o creador del equipo puede inscribirlo o solicitar la unión a un campeonato' });
+            }
+
             if (equipo.deporte !== camp.deporte) {
                 return res.status(422).json({ status: 422, message: `El deporte del equipo (${equipo.deporte}) no coincide con el del campeonato (${camp.deporte})` });
             }

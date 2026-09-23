@@ -239,6 +239,11 @@ class CampeonatoController {
                 const faseId = faseResult.insertId;
 
                 if (data.equipo_local_id) {
+                    const [eqCheck] = await db.query('SELECT propietario_id FROM equipo WHERE id = ?', [data.equipo_local_id]);
+                    if (!eqCheck[0] || eqCheck[0].propietario_id != req.user.id) {
+                        return res.status(403).json({ status: 403, message: 'Solo el dueño o creador del equipo puede inscribirlo en un partido' });
+                    }
+
                     await db.query(`
                         INSERT INTO partidos (fase_id, fecha, equipo_local_id, estado) 
                         VALUES (?, ?, ?, 'programado')
