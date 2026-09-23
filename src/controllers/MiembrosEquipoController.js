@@ -47,7 +47,7 @@ class MiembrosEquipoController {
             if (!data.usuario_id || !data.equipo_id || !data.rol_usuario) return res.status(400).json({ status: 400, message: 'Faltan campos' });
 
             if (data.rol_usuario === 'capitan') {
-                await db.query('UPDATE miembros_equipo SET rol_usuario = "jugador" WHERE equipo_id = ? AND rol_usuario = "capitan" AND activo = 1', [data.equipo_id]);
+                await db.query("UPDATE miembros_equipo SET rol_usuario = 'jugador' WHERE equipo_id = ? AND rol_usuario = 'capitan' AND activo = 1", [data.equipo_id]);
             }
 
             const [result] = await db.query('UPDATE miembros_equipo SET rol_usuario = ? WHERE usuario_id = ? AND equipo_id = ? AND activo = 1', [data.rol_usuario, data.usuario_id, data.equipo_id]);
@@ -55,7 +55,8 @@ class MiembrosEquipoController {
             if (result.affectedRows > 0) return res.json({ status: 200, message: 'Rol actualizado' });
             return res.status(404).json({ status: 404, message: 'No encontrado' });
         } catch (error) {
-            return res.status(500).json({ status: 500, message: 'Error', data: null });
+            console.error('Error al actualizar rol de miembro:', error);
+            return res.status(500).json({ status: 500, message: 'Error al actualizar el rol', data: { detalles: error.message } });
         }
     }
 

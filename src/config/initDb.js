@@ -85,7 +85,7 @@ const tables = [
         id INT AUTO_INCREMENT PRIMARY KEY,
         usuario_id INT NOT NULL,
         equipo_id INT NOT NULL,
-        rol_usuario ENUM('jugador', 'capitan', 'entrenador') DEFAULT 'jugador',
+        rol_usuario ENUM('jugador', 'capitan', 'entrenador', 'suplente') DEFAULT 'jugador',
         activo TINYINT(1) DEFAULT 1,
         fecha_union DATETIME DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (usuario_id) REFERENCES usuario(id) ON DELETE CASCADE,
@@ -334,6 +334,10 @@ async function initDb() {
       name: 'Add fk_campeonato_mensajes to mensajes',
       query: 'ALTER TABLE mensajes ADD CONSTRAINT fk_campeonato_mensajes FOREIGN KEY (campeonato_id) REFERENCES campeonato(id) ON DELETE CASCADE',
       ignoreError: true
+    },
+    {
+      name: 'Update rol_usuario ENUM in miembros_equipo',
+      query: "ALTER TABLE miembros_equipo MODIFY COLUMN rol_usuario ENUM('jugador', 'capitan', 'entrenador', 'suplente') DEFAULT 'jugador'"
     }
   ];
 
