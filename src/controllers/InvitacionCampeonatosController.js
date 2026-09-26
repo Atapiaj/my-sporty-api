@@ -152,6 +152,7 @@ class InvitacionCampeonatosController {
                     }
                     await connection.query('DELETE FROM invitacion_campeonatos WHERE id = ?', [id]);
                     await connection.commit();
+                    socketManager.notifyUser(invCheck[0].de_usuario_id, 'nueva_notificacion');
                     return res.json({ status: 200, message: 'Actualizado y partido programado' });
                 } else {
                     if (maxEquipos != null && maxEquipos > 0 && countData[0].total >= maxEquipos) {
@@ -162,6 +163,7 @@ class InvitacionCampeonatosController {
 
                     // Regenerate fixture due to new team
                     await connection.commit(); // commit current changes first since regenerate creates its own transaction
+                    socketManager.notifyUser(invCheck[0].de_usuario_id, 'nueva_notificacion');
                     await FixtureService.regenerate(invCheck[0].campeonato_id);
                     return res.json({ status: 200, message: 'Actualizado y fixture regenerado' });
                 }
@@ -170,6 +172,7 @@ class InvitacionCampeonatosController {
             await connection.query('DELETE FROM invitacion_campeonatos WHERE id = ?', [id]);
             
             await connection.commit();
+            socketManager.notifyUser(invCheck[0].de_usuario_id, 'nueva_notificacion');
             return res.json({ status: 200, message: 'Actualizado' });
         } catch (error) {
             await connection.rollback();
@@ -218,7 +221,7 @@ class InvitacionCampeonatosController {
                 return res.status(403).json({ status: 403, message: 'Solo el dueño o creador del equipo puede inscribirlo o solicitar la unión a un campeonato' });
             }
 
-            if (equipo.deporte !== camp.deporte) {
+            if (equipo.deporte?.trim().toLowerCase() !== camp.deporte?.trim().toLowerCase()) {
                 return res.status(422).json({ status: 422, message: `El deporte del equipo (${equipo.deporte}) no coincide con el del campeonato (${camp.deporte})` });
             }
 
