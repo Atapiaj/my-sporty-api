@@ -34,6 +34,7 @@ class CampeonatoController {
             const [items] = await db.query(`
                 SELECT c.*, 
                     e.nombre as campeon_nombre,
+                    u.nombre as propietario_nombre,
                     (SELECT COUNT(*) FROM miembros_campeonatos mc WHERE mc.campeonato_id = c.id AND mc.activo = 1) as equipos_inscritos,
                     -- Check if user has a pending request for any of their teams
                     (SELECT ic.id FROM invitacion_campeonatos ic JOIN equipo eq ON ic.equipo_id = eq.id WHERE ic.campeonato_id = c.id AND eq.propietario_id = ? AND ic.estado = 'pendiente' AND ic.tipo = 'solicitud_union' LIMIT 1) as solicitud_pendiente_id,
@@ -47,6 +48,7 @@ class CampeonatoController {
                      LIMIT 1) as equipo_inscrito_nombre
                 FROM campeonato c
                 LEFT JOIN equipo e ON c.campeon_id = e.id
+                LEFT JOIN usuario u ON c.propietario_id = u.id
                 WHERE c.privacidad = 'publico'
                 ORDER BY c.fecha_inicio DESC
             `, [req.user.id, req.user.id, req.user.id]);
