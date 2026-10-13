@@ -90,6 +90,9 @@ class SolicitudAmistadController {
                     } else {
                         await connection.query('INSERT INTO amistad (usuario1_id, usuario2_id) VALUES (?, ?)', [u1, u2]);
                     }
+
+                    // Notificar al remitente original para que refresque su lista de amigos
+                    socketManager.notifyUser(deUsuarioId, 'amistad_aceptada');
                 }
 
                 await connection.query('DELETE FROM solicitud_amistad WHERE id = ?', [id]);
